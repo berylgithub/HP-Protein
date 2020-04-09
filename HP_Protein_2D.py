@@ -8,41 +8,6 @@ import time
 import numpy as np
 
 def func_2D_protein(x, *args):
-    return None
-
-def calculate_fitness_2D_sequence(hp_seq, move_seq, settings):
-    coord = to_2D_cartesian(move_seq)
-    print(coord)
-    return fitness
-
-def to_2D_cartesian(move_seq):
-    '''
-    i assume that F is always +1 on X-axis for the first sequence
-    F means 2*prev_coor-prev(prev_coor)
-    R means clockwise_rotation(F) (-90 deg)
-    L means counter_clockwise_rotation(F) (90 deg)
-    '''
-    
-    len_move_seq = move_seq.shape[0]
-    coord = np.zeros((len_move_seq+2, 2))
-    coord[0] = np.array([0,0])
-    coord[1] = np.array([1,0]) #the first movement is always F
-    
-    for i in range(len_move_seq):
-        vec_diff = coord[i+1]-coord[i]
-        if move_seq[i] == 0: #if F
-            coord[i+2] = coord[i+1] + vec_diff
-        elif move_seq[i] == 1: #if R
-            coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], np.pi/2), f_r_y(vec_diff[0], vec_diff[1], np.pi/2)], dtype=int )
-        elif move_seq[i] == 2: #if L
-            coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], -np.pi/2), f_r_y(vec_diff[0], vec_diff[1], -np.pi/2)], dtype=int )
-    return coord
-
-f_r_x = lambda x,y,t:(x*np.cos(t))+(y*np.sin(t)) #rotation function for x
-f_r_y = lambda x,y,t:(-x*np.sin(t))+(y*np.cos(t)) #rotation function for y
-
-if __name__ == "__main__":
-
     '''
     2D relative contact
     H=1, P=0
@@ -51,18 +16,14 @@ if __name__ == "__main__":
     four directional neighboor checking, range : F=[0,3), R=[3,6), L=[6,9)
     the first two seqs always belong to F, default sequence is F^N, N \in Z^+, meaning if a protein seq is [HPPHPH] then the default move seq is [FFFF] or [0000]
     '''
+    '''
+    x: input of 1D array with size N-2, x \in R, N \in Z^+ (numpy array)
+    *args:
+        0 = hp_seq (1D array) with size N
+        1 = settings:{"E_contact":{"HH", "HP", "PH", "PP"} (\in R), "ranges" ((3,2) \in R)}
+    '''
     #inputs
-    np.random.seed(13)
-    settings={
-            "E_contact": {"HH":-1., "HP":0., "PH":0., "PP":0.},
-            "ranges":np.array(((0,3),(3,6),(6,9)))
-            }
-    hp_seq = [1,0,0,1,0,1]
-    len_hp_seq = len(hp_seq)
-    x = np.random.uniform(0,9,len_hp_seq-2)
-    print(x)
-    
-    
+    print(x, args)
     
     #range to sequence
     ranges = settings["ranges"]
@@ -106,3 +67,74 @@ if __name__ == "__main__":
         to_2D_cartesian(move_seq)
         fitness = calculate_fitness_2D_sequence(hp_seq, move_seq, settings)
     
+    return fitness
+
+
+def calculate_fitness_2D_sequence(hp_seq, move_seq, settings):
+    coords = to_2D_cartesian(move_seq) #convert movement sequences to 2D cartesian 
+    print(coords)
+    directional_coords = np.array([[1,0],[0,-1],[-1,0],[0,1]]) #clockwise starting from East
+    coords_length=coords.shape[0]
+    dir_coords_length = directional_coords.shape[0]
+    contacts = [] #(p_idx_1, p_idx_2, contact_type)
+    #check 4 directional neighboors, check the contact type
+    for i in range(coords_length):
+        neighboor_coords = coords[i]+directional_coords
+        indirect_conn = None
+        for j in range (dir_coords_length):
+            if i==0: #start index
+                indirect_conn = coords[i+2:]
+            elif i==dir_coords_length-1: #end index
+                indirect_conn = coords[:i-1]
+            else :
+                indirect_conn = np.concatenate((coords[:i-1], coords[i+2:])) #intermediate index
+            idx = np.where((indirect_conn[:,0] == neighboor_coords[j][0]) & (indirect_conn[:,1] == neighboor_coords[j][1]))[0] #check the index of the non direct neighhbors which is in the coords 
+            if idx.size>0:
+                matched_coord = indirect_conn[idx[0]]
+                matched_idx = np.where((coords[:,0] == matched_coord[0]) & (coords[:,1] == matched_coord[1]))[0] #get the index in coords array
+                contacts.append((i,matched_idx[0]))
+            #print(indirect_conn, neighboor_coords[j])
+    if len(contacts)>0:
+        contacts = np.unique(np.sort(contacts, axis=1), axis=0)
+    
+    #calculate the fitness
+    E_dict = {1:"H", 0:"P"}
+    fitness = np.sum([settings["E_contact"][E_dict[hp_seq[con_[0]]]+E_dict[hp_seq[con_[1]]]] for con_ in contacts])
+            
+    return fitness
+
+def to_2D_cartesian(move_seq):
+    '''
+    i assume that F is always +1 on X-axis for the first sequence
+    F means 2*prev_coor-prev(prev_coor)
+    R means clockwise_rotation(F) (-90 deg)
+    L means counter_clockwise_rotation(F) (90 deg)
+    '''
+    
+    len_move_seq = move_seq.shape[0]
+    coord = np.zeros((len_move_seq+2, 2))
+    coord[0:2] = np.array([[0,0],[1,0]]) #the first movement is always F
+    for i in range(len_move_seq):
+        vec_diff = coord[i+1]-coord[i]
+        if move_seq[i] == 0: #if F
+            coord[i+2] = coord[i+1] + vec_diff
+        elif move_seq[i] == 1: #if R
+            coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], np.pi/2), f_r_y(vec_diff[0], vec_diff[1], np.pi/2)], dtype=int )
+        elif move_seq[i] == 2: #if L
+            coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], -np.pi/2), f_r_y(vec_diff[0], vec_diff[1], -np.pi/2)], dtype=int )
+    return coord
+
+f_r_x = lambda x,y,t:(x*np.cos(t))+(y*np.sin(t)) #rotation function for x
+f_r_y = lambda x,y,t:(-x*np.sin(t))+(y*np.cos(t)) #rotation function for y
+
+if __name__ == "__main__":
+    np.random.seed(13)
+    #inputs
+    settings={
+            "E_contact": {"HH":-1., "HP":0., "PH":0., "PP":0.},
+            "ranges":np.array(((0,3),(3,6),(6,9)))
+            }
+    hp_seq = np.array([1,0,0,1,0,1])
+    len_hp_seq = hp_seq.shape[0]
+    x = np.random.uniform(0,9,len_hp_seq-2)
+    print(func_2D_protein(x, hp_seq, settings))
