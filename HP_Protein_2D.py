@@ -23,7 +23,8 @@ def func_2D_protein(x, *args):
         1 = settings:{"E_contact":{"HH", "HP", "PH", "PP"} (\in R), "ranges" ((3,2) \in R)}
     '''
     #inputs
-    print(x, args)
+    hp_seq = args[0]
+    settings = args[1]
     
     #range to sequence
     ranges = settings["ranges"]
@@ -36,19 +37,17 @@ def func_2D_protein(x, *args):
             move_seq[i] = 1
         elif ranges[2][0]<=x[i]<ranges[2][1]:
             move_seq[i] = 2
-    print(move_seq)
     
     #feasible conformation checker
     #move_seq = np.array([0,0,1,1,2,2,1,0,0,0,1,1,2,2,1,1,2,1,2,2])
     len_move = move_seq.shape[0]
     feasibility = True    
     fitness = np.inf
-
+    
+    #initial feasibility check, to make the calculation faster
     counter=1
     for i in range(len_move):
-        print(move_seq[i], counter)
         if counter>2:
-            print("infeasible")
             feasibility = False
             break
         if (i<len_move-1) and (move_seq[i]>0): #if not end of move_seq and moveement is not F
@@ -64,15 +63,14 @@ def func_2D_protein(x, *args):
     #fitness value setter
     #calculate the actual fitness value
     if feasibility == True:
-        to_2D_cartesian(move_seq)
-        fitness = calculate_fitness_2D_sequence(hp_seq, move_seq, settings)
+        coords = to_2D_cartesian(move_seq)
+        if len(np.unique(coords, axis=0)) == len(coords): #another feasibility check by checking duplicate coordinates
+            fitness = calculate_fitness_2D_sequence(hp_seq, coords, settings)
     
     return fitness
 
 
-def calculate_fitness_2D_sequence(hp_seq, move_seq, settings):
-    coords = to_2D_cartesian(move_seq) #convert movement sequences to 2D cartesian 
-    print(coords)
+def calculate_fitness_2D_sequence(hp_seq, coords, settings):
     directional_coords = np.array([[1,0],[0,-1],[-1,0],[0,1]]) #clockwise starting from East
     coords_length=coords.shape[0]
     dir_coords_length = directional_coords.shape[0]
@@ -124,9 +122,45 @@ def to_2D_cartesian(move_seq):
             coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], -np.pi/2), f_r_y(vec_diff[0], vec_diff[1], -np.pi/2)], dtype=int )
     return coord
 
+def to_2D_cartesian_from_real(x, settings):
+    '''
+    the input is directly the x vector
+    '''
+    ranges = settings["ranges"]
+    len_x = x.shape[0]
+    move_seq = np.empty(len_x)
+    for i in range(len_x):
+        if ranges[0][0]<=x[i]<ranges[0][1]:
+            move_seq[i] = 0
+        elif ranges[1][0]<=x[i]<ranges[1][1]:
+            move_seq[i] = 1
+        elif ranges[2][0]<=x[i]<ranges[2][1]:
+            move_seq[i] = 2
+    
+    len_move_seq = move_seq.shape[0]
+    coord = np.zeros((len_move_seq+2, 2))
+    coord[0:2] = np.array([[0,0],[1,0]]) #the first movement is always F
+    for i in range(len_move_seq):
+        vec_diff = coord[i+1]-coord[i]
+        if move_seq[i] == 0: #if F
+            coord[i+2] = coord[i+1] + vec_diff
+        elif move_seq[i] == 1: #if R
+            coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], np.pi/2), f_r_y(vec_diff[0], vec_diff[1], np.pi/2)], dtype=int )
+        elif move_seq[i] == 2: #if L
+            coord[i+2] = coord[i+1] + np.array( [f_r_x(vec_diff[0], vec_diff[1], -np.pi/2), f_r_y(vec_diff[0], vec_diff[1], -np.pi/2)], dtype=int )
+    return coord
+
 f_r_x = lambda x,y,t:(x*np.cos(t))+(y*np.sin(t)) #rotation function for x
 f_r_y = lambda x,y,t:(-x*np.sin(t))+(y*np.cos(t)) #rotation function for y
 
+def string_seq_to_bin(string_seq):
+    '''
+    "HHPH" -> [1,1,0,1]
+    '''
+    dic_seq={"H":1, "P":0}
+    return np.array([dic_seq[s_] for s_ in string_seq])
+    
+    
 if __name__ == "__main__":
     np.random.seed(13)
     #inputs
@@ -134,7 +168,10 @@ if __name__ == "__main__":
             "E_contact": {"HH":-1., "HP":0., "PH":0., "PP":0.},
             "ranges":np.array(((0,3),(3,6),(6,9)))
             }
-    hp_seq = np.array([1,0,0,1,0,1])
+    hp_seq = string_seq_to_bin("HPPHPH")
     len_hp_seq = hp_seq.shape[0]
-    x = np.random.uniform(0,9,len_hp_seq-2)
+    x = np.random.uniform(0,9,len_hp_seq-2) #x should be generated from optimization algorithms
     print(func_2D_protein(x, hp_seq, settings))
+    
+    
+    
