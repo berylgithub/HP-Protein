@@ -7,6 +7,9 @@ Created on Mon Apr  6 14:37:33 2020
 import time
 import numpy as np
 
+global return_val
+return_val = []
+
 def func_2D_protein(x, *args):
     '''
     2D relative contact
@@ -66,7 +69,14 @@ def func_2D_protein(x, *args):
         coords = to_2D_cartesian(move_seq)
         if len(np.unique(coords, axis=0)) == len(coords): #another feasibility check by checking duplicate coordinates
             fitness = calculate_fitness_2D_sequence(hp_seq, coords, settings)
-    
+            #append to return val to save the data to pickle
+            length = len(return_val)
+            
+            if length > 0:
+                if not np.array_equal(coords, return_val[length-1][0]):
+                    return_val.append((coords, fitness))
+            else:
+                return_val.append((coords, fitness))
     return fitness
 
 
@@ -168,10 +178,10 @@ if __name__ == "__main__":
             "E_contact": {"HH":-1., "HP":0., "PH":0., "PP":0.},
             "ranges":np.array(((0,3),(3,6),(6,9)))
             }
-    hp_seq = string_seq_to_bin("HPPHPH")
-    len_hp_seq = hp_seq.shape[0]
-    x = np.random.uniform(0,9,len_hp_seq-2) #x should be generated from optimization algorithms
-    print(func_2D_protein(x, hp_seq, settings))
+#    hp_seq = string_seq_to_bin("HPPHPH")
+#    len_hp_seq = hp_seq.shape[0]
+#    x = np.random.uniform(0,9,len_hp_seq-2) #x should be generated from optimization algorithms
+#    print(func_2D_protein(x, hp_seq, settings))
     
     
     
