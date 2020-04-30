@@ -7,6 +7,40 @@ Created on Wed Apr 29 13:54:02 2020
 import numpy as np
 import time
 
+
+def clustering(F, domain, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
+    '''
+    diversification phase of initial guess points, outputs clusters of domains
+    '''
+
+    dim = len(domain)
+    x = np.array([[np.random.uniform(domain[j][0], domain[j][1]) for j in range(dim)] for i in range(m_cluster)]) #generate init population
+    center_idx = np.argmax(np.array(list(map(F, x)))) #get the center of cluster index
+    x_star = x[center_idx] #center of cluster
+    radius = np.min(np.array([np.fabs(dom[1]-dom[0]) for dom in domain]))/2.0 #get the radius of cluster
+    cluster = {"center": [x_star], "id":[center_idx], "radius":[radius]} #cluster data structure
+    for i in range(m_cluster):
+        if (F(x[i]) > gamma) and (i not in cluster["id"]):
+            cluster_f(F, domain, x[i], cluster, i)
+#        x_p = 
+
+def cluster_f(F, domain, y, cluster, y_id):
+    idx = np.argmin(np.array([np.linalg.norm(y-center) for center in cluster["center"]])) #find closest cluster idx
+    x_c = cluster["center"][idx] #the closest cluster center to y
+    x_t = 0.5*(x_c+y)
+    if (F(x_t) < F(y)) and (F(x_t) < F(x_c)):
+        cluster["center"].append(y)
+        cluster["id"].append(y_id)
+        cluster["radius"].append(np.linalg.norm(y-x_t))
+    elif (F(x_t) > F(y)) and (F(x_t) > F(x_c)):
+        cluster["center"].append(y)
+        cluster["id"].append(y_id)
+        cluster["radius"].append(np.linalg.norm(y-x_t))
+        cluster_f(F, domain, x_t, cluster, -1)
+    elif F(y) > F(x_c):
+        cluster["radius"][idx] = np.linalg.norm(y-x_t)
+    return cluster
+    
 def mat_R_ij(dim, i, j, theta):
     c, s = np.cos(np.deg2rad(theta)), np.sin(np.deg2rad(theta))
     R = np.zeros((dim, dim))
@@ -90,7 +124,6 @@ def spiral_dynamics_optimization(F, S, R, m, theta, r, kmax, domain, log=True):
 
 rotate_point = lambda x, x_star, S, R, x_dim, r, theta: np.matmul( S(R, x_dim, r, theta), x ) - np.matmul( ( S(R, x_dim, r, theta) - np.identity(x_dim) ), x_star )
 
-    
 
 
 
@@ -109,8 +142,8 @@ if __name__=="__main__":
     start = time.time()
     f = [lambda x : x[0]**2 + x[1]**2 - 0.3*np.cos(3*np.pi*x[0]) -0.4*np.cos(4*np.pi*x[1]) +0.7]
     F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
-    domain = np.array([[-100,100]]*20)    
-    x_star, F_x_star = spiral_dynamics_optimization(F, transformation_matrix, mat_R_ij, 20, 30, 0.9, 350, domain, log=True)
+    domain = np.array([[-100,100]]*64)    
+    x_star, F_x_star = spiral_dynamics_optimization(F, transformation_matrix, mat_R_ij, 20, 30, 0.9, 50, domain, log=True)
     print("\nFinal value of x, F(x) is : ",x_star,",",F_x_star,"")
     print(start-time.time())
     
