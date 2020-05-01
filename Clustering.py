@@ -8,22 +8,54 @@ import numpy as np
 import time
 
 
-def clustering(F, domain, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
+
+def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
+    '''
+    combination of clustering and spiral optimization
+    '''
+    cluster, x = clustering(F, domain, spiral_settings, m_cluster, gamma, epsilon, delta, k_cluster)
+    print(cluster)
+    dim = len(domain)
+    num_cluster = len(cluster["center"])
+    new_domains = np.zeros((num_cluster, dim, 2))
+    for i in range(num_cluster): #do spiral for each clusters
+        for j in range(dim):
+            new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
+#        temp = np.array([[cluster["center"][j]-cluster["radius"][j],cluster["center"][j]+cluster["radius"][j]] for j in range(dim)])
+#        new_domains[i] = 
+    print(new_domains, "\n")
+        
+def clustering(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
     '''
     diversification phase of initial guess points, outputs clusters of domains
+    cluster_settings contains:
+        S: transformation matrix
+        R: Rij entries
+        r: contraction constant
+        theta: rotation constant
     '''
-
+    ############## settings for points' rotation
+    S = spiral_settings["S"]
+    R = spiral_settings["R"]
+    r = spiral_settings["r"]
+    theta = spiral_settings["theta"]
+#    kmax = spiral_settings["kmax"]
+    ##############
     dim = len(domain)
     x = np.array([[np.random.uniform(domain[j][0], domain[j][1]) for j in range(dim)] for i in range(m_cluster)]) #generate init population
     center_idx = np.argmax(np.array(list(map(F, x)))) #get the center of cluster index
     x_star = x[center_idx] #center of cluster
     radius = np.min(np.array([np.fabs(dom[1]-dom[0]) for dom in domain]))/2.0 #get the radius of cluster
     cluster = {"center": [x_star], "id":[center_idx], "radius":[radius]} #cluster data structure
-    for i in range(m_cluster):
-        if (F(x[i]) > gamma) and (i not in cluster["id"]):
-            cluster_f(F, domain, x[i], cluster, i)
-#        x_p = 
-
+    #should be another loop here
+    for k in range(k_cluster):
+        for i in range(m_cluster):
+            if (F(x[i]) > gamma) and (i not in cluster["id"]):
+                cluster = cluster_f(F, domain, x[i], cluster, i)
+            x_p = x[np.argmax(np.array(list(map(F, x))))]
+            x = np.array([rotate_point(x[i], x_p, S, R, dim, r, theta) for i in range(len(x))])
+    return cluster, x
+    
 def cluster_f(F, domain, y, cluster, y_id):
     idx = np.argmin(np.array([np.linalg.norm(y-center) for center in cluster["center"]])) #find closest cluster idx
     x_c = cluster["center"][idx] #the closest cluster center to y
@@ -135,19 +167,28 @@ if __name__=="__main__":
 #    f=[lambda x : ( (x[0]**4) - 16*(x[0]**2) + 5*x[0] )/2 + ( x[1]**4 - 16*(x[1]**2) + 5*x[1] )/2]
 #    #transform f(x) into maximization function
 #    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
-#    
 #    x_star, F_x_star = spiral_dynamics_optimization(F, transformation_matrix, mat_R_ij, 20, 30, 0.9, 350, domain, log=True)
 #    print("\nFinal value of x, F(x) is : ",x_star,",",F_x_star,"")
 
-    start = time.time()
-    f = [lambda x : x[0]**2 + x[1]**2 - 0.3*np.cos(3*np.pi*x[0]) -0.4*np.cos(4*np.pi*x[1]) +0.7]
-    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
-    domain = np.array([[-100,100]]*64)    
-    x_star, F_x_star = spiral_dynamics_optimization(F, transformation_matrix, mat_R_ij, 20, 30, 0.9, 50, domain, log=True)
-    print("\nFinal value of x, F(x) is : ",x_star,",",F_x_star,"")
-    print(start-time.time())
+#    start = time.time()
+#    f = [lambda x : x[0]**2 + x[1]**2 - 0.3*np.cos(3*np.pi*x[0]) -0.4*np.cos(4*np.pi*x[1]) +0.7]
+#    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
+#    domain = np.array([[-100,100]]*2)    
+#    x_star, F_x_star = spiral_dynamics_optimization(F, transformation_matrix, mat_R_ij, 20, 45, 0.95, 350, domain, log=True)
+#    print("\nFinal value of x, F(x) is : ",x_star,",",F_x_star,"")
+#    print(time.time()-start)
     
 #    start = time.time()
 #    S = transformation_matrix(mat_R_ij, 1000, 0.9, 30)
 #    print(S)
 #    print(time.time()-start)
+
+    f = [lambda x : np.exp(x[0]-x[1])-np.sin(x[0]+x[1]), lambda x : (x[0]**2) * (x[1]**2) - np.cos(x[0]+x[1])]
+    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
+    domain = np.array([[-10,10]]*2)  
+    start = time.time()
+    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "theta":45, "kmax":250}
+#    cluster, x = clustering(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=1e-7, delta=1e-2, k_cluster=10)
+#    print(cluster)
+    cluster_spiral(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=1e-7, delta=1e-2, k_cluster=10)
+    print(time.time()-start)
