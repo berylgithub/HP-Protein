@@ -6,7 +6,7 @@ Created on Wed Apr 29 13:54:02 2020
 """
 import numpy as np
 import time
-
+import sobol_seq
 
 
 def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
@@ -18,13 +18,41 @@ def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=
     dim = len(domain)
     num_cluster = len(cluster["center"])
     new_domains = np.zeros((num_cluster, dim, 2))
+    accepted_roots = []
+    accepted_fs=[]
     for i in range(num_cluster): #do spiral for each clusters
+        print("cluster no. ",i)
         for j in range(dim):
             new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
-#        temp = np.array([[cluster["center"][j]-cluster["radius"][j],cluster["center"][j]+cluster["radius"][j]] for j in range(dim)])
-#        new_domains[i] = 
+        x_star, f_star = spiral_dynamics_optimization(F, spiral_settings["S"], spiral_settings["R"], spiral_settings["m"], 
+                                     spiral_settings["theta"], spiral_settings["r"], 
+                                     spiral_settings["kmax"], new_domains[i], log=False)
+        if (1.0-f_star) < epsilon: #roots selection by threshold
+            accepted_roots.append(x_star)
+            accepted_fs.append(f_star)
+    #selection by proximity
+    accepted_roots = np.array(accepted_roots)
+    print(accepted_roots, len(accepted_roots))
+    accepted_fs = np.array(accepted_fs)
+    length = accepted_roots.shape[0]
+    new_accepted_root_idxes = []
+    for i in range(length):
+        for j in range(length):
+            if i>j:
+                if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) > delta:
+                    print(i,j, np.linalg.norm(accepted_roots[i]-accepted_roots[j]), delta)
+                    new_accepted_root_idxes.append(i)
+                    new_accepted_root_idxes.append(j)
+                elif np.linalg.norm(accepted_roots[i]-accepted_roots[j]) <= delta:
+                    if accepted_fs[i]>=accepted_fs[j]:
+                        new_accepted_root_idxes.append(i)
+                    elif accepted_fs[i]<accepted_fs[j]:
+                        new_accepted_root_idxes.append(j)
+    new_accepted_root_idxes = np.array(list(set(new_accepted_root_idxes)))
     print(new_domains, "\n")
-        
+    print(new_accepted_root_idxes, len(new_accepted_root_idxes))
+    return new_accepted_root_idxes
+    
 def clustering(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
     '''
     diversification phase of initial guess points, outputs clusters of domains
@@ -42,13 +70,17 @@ def clustering(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5
 #    kmax = spiral_settings["kmax"]
     ##############
     dim = len(domain)
-    x = np.array([[np.random.uniform(domain[j][0], domain[j][1]) for j in range(dim)] for i in range(m_cluster)]) #generate init population
+    x = sobol_seq.i4_sobol_generate(dim, m_cluster)
+    for i in range(dim):
+        x.T[i] = x.T[i]*(domain[i][1]-domain[i][0])+domain[i][0]
+#    x = np.array([[np.random.uniform(domain[j][0], domain[j][1]) for j in range(dim)] for i in range(m_cluster)]) #generate init population
     center_idx = np.argmax(np.array(list(map(F, x)))) #get the center of cluster index
     x_star = x[center_idx] #center of cluster
     radius = np.min(np.array([np.fabs(dom[1]-dom[0]) for dom in domain]))/2.0 #get the radius of cluster
     cluster = {"center": [x_star], "id":[center_idx], "radius":[radius]} #cluster data structure
     #should be another loop here
     for k in range(k_cluster):
+        print("k-cluster = ", k)
         for i in range(m_cluster):
             if (F(x[i]) > gamma) and (i not in cluster["id"]):
                 cluster = cluster_f(F, domain, x[i], cluster, i)
@@ -137,6 +169,10 @@ def spiral_dynamics_optimization(F, S, R, m, theta, r, kmax, domain, log=True):
     # generate m init points using random uniform between function domain
     x = np.array([[np.random.uniform(domain[j][0], domain[j][1]) for j in range(x_dim)] for i in range(m)])
 
+    x = sobol_seq.i4_sobol_generate(x_dim, m) #now using sobol
+    for i in range(x_dim):
+        x.T[i] = x.T[i]*(domain[i][1]-domain[i][0])+domain[i][0]
+
     f = np.array([F(x_) for x_ in x])
 
     # search the minimum/maximum (depends on the problem) of f(init_point), in this case, max
@@ -187,8 +223,8 @@ if __name__=="__main__":
     F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
     domain = np.array([[-10,10]]*2)  
     start = time.time()
-    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "theta":45, "kmax":250}
+    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":250, "theta":45, "kmax":250}
 #    cluster, x = clustering(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=1e-7, delta=1e-2, k_cluster=10)
 #    print(cluster)
-    cluster_spiral(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=1e-7, delta=1e-2, k_cluster=10)
+    cluster_spiral(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=0.1, delta=1e-1, k_cluster=10)
     print(time.time()-start)
