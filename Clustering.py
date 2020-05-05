@@ -30,28 +30,47 @@ def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=
         if (1.0-f_star) < epsilon: #roots selection by threshold
             accepted_roots.append(x_star)
             accepted_fs.append(f_star)
-    #selection by proximity
+    #selection by proximity:
     accepted_roots = np.array(accepted_roots)
     print(accepted_roots, len(accepted_roots))
     accepted_fs = np.array(accepted_fs)
     length = accepted_roots.shape[0]
-    new_accepted_root_idxes = []
+    geq_delta_idxes = []
+    leq_delta_idxes = []
     for i in range(length):
+        geq_truth = True
         for j in range(length):
-            if i>j:
-                if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) > delta:
-                    print(i,j, np.linalg.norm(accepted_roots[i]-accepted_roots[j]), delta)
-                    new_accepted_root_idxes.append(i)
-                    new_accepted_root_idxes.append(j)
-                elif np.linalg.norm(accepted_roots[i]-accepted_roots[j]) <= delta:
-                    if accepted_fs[i]>=accepted_fs[j]:
-                        new_accepted_root_idxes.append(i)
-                    elif accepted_fs[i]<accepted_fs[j]:
-                        new_accepted_root_idxes.append(j)
-    new_accepted_root_idxes = np.array(list(set(new_accepted_root_idxes)))
-    print(new_domains, "\n")
-    print(new_accepted_root_idxes, len(new_accepted_root_idxes))
-    return new_accepted_root_idxes
+            if i!=j:    
+#                if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) > delta:
+#                    truth = 
+#                    print(i,j, np.linalg.norm(accepted_roots[i]-accepted_roots[j]), delta)
+#                    new_accepted_root_idxes.append(i)
+#                    new_accepted_root_idxes.append(j)
+                if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) <= delta:
+                    geq_truth = False
+#                    if accepted_fs[i]>=accepted_fs[j]:
+#                        new_accepted_root_idxes.append(i)
+#                    elif accepted_fs[i]<accepted_fs[j]:
+#                        new_accepted_root_idxes.append(j)
+        if geq_truth:
+            geq_delta_idxes.append(i)
+        else:
+            leq_delta_idxes.append(i)
+            
+    geq_delta_idxes = np.array(geq_delta_idxes)
+    leq_delta_idxes = np.array(leq_delta_idxes)
+    new_accepted_roots = []
+    if len(leq_delta_idxes)>0:
+        max_root = accepted_roots[np.argmax(accepted_fs[leq_delta_idxes])]  #get the roots with highest F from less than delta idxes
+        new_accepted_roots.append(max_root)
+    new_accepted_roots.extend(accepted_roots[geq_delta_idxes]) #get the greater than delta x-idxes
+    new_accepted_roots = np.array(new_accepted_roots)
+    
+#    print(new_domains, "\n")
+    print(geq_delta_idxes, leq_delta_idxes)
+    print(new_accepted_roots, len(new_accepted_roots))
+    
+    return new_accepted_roots
     
 def clustering(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
     '''
@@ -198,7 +217,7 @@ rotate_point = lambda x, x_star, S, R, x_dim, r, theta: np.matmul( S(R, x_dim, r
 
 if __name__=="__main__":
     # seed the random, as usual, to create reproducible result
-    np.random.seed(13)
+#    np.random.seed(13)
 #    domain=np.array([[-4,4], [-4,4]])
 #    f=[lambda x : ( (x[0]**4) - 16*(x[0]**2) + 5*x[0] )/2 + ( x[1]**4 - 16*(x[1]**2) + 5*x[1] )/2]
 #    #transform f(x) into maximization function
