@@ -31,7 +31,7 @@ def cluster_DE(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10, g
         for j in range(dim):
             new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
         x_star, f_star = DE_max(F, new_domains[i], *f_args, mut=DE_settings['mut'], crossp=DE_settings['crossp'], 
-                            popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'])
+                            popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'], sobol=False)
         if (1.0-f_star) < epsilon: #roots selection by threshold
             accepted_roots.append(x_star)
             accepted_fs.append(f_star)
@@ -73,6 +73,7 @@ def cluster_spiral(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2,
     '''
     combination of clustering and spiral optimization
     '''
+
     cluster, x = clustering(F, domain, spiral_settings,*f_args, 
                             m_cluster=m_cluster, gamma=gamma, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
     print(cluster)
@@ -133,6 +134,7 @@ def clustering(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, eps
         r: contraction constant
         theta: rotation constant
     '''
+
     ############## settings for points' rotation
     S = spiral_settings["S"]
     R = spiral_settings["R"]
@@ -145,7 +147,9 @@ def clustering(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, eps
     for i in range(dim):
         x.T[i] = x.T[i]*(domain[i][1]-domain[i][0])+domain[i][0]
 #    x = np.array([[np.random.uniform(domain[j][0], domain[j][1]) for j in range(dim)] for i in range(m_cluster)]) #generate init population
-    center_idx = np.argmax(np.array(list(map(F, x)))) #get the center of cluster index
+    temp_F = lambda x_ : F(x_, *f_args)
+    center_idx = np.argmax(np.array(list(map(temp_F, x)))) #get the center of cluster using map
+#    center_idx = np.argmax(np.array(list(map(F, x)))) #get the center of cluster index
     x_star = x[center_idx] #center of cluster
     radius = np.min(np.array([np.fabs(dom[1]-dom[0]) for dom in domain]))/2.0 #get the radius of cluster
     cluster = {"center": [x_star], "id":[center_idx], "radius":[radius]} #cluster data structure
@@ -153,26 +157,28 @@ def clustering(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, eps
     for k in range(k_cluster):
         print("k-cluster = ", k)
         for i in range(m_cluster):
-            if (F(x[i]) > gamma) and (i not in cluster["id"]):
-                cluster = cluster_f(F, domain, x[i], cluster, i)
-            x_p = x[np.argmax(np.array(list(map(F, x))))]
+            if (F(x[i], *f_args) > gamma) and (i not in cluster["id"]):
+                cluster = cluster_f(F, domain, x[i], cluster, i, *f_args)
+            x_p = x[np.argmax(np.array(list(map(temp_F, x))))]
+#            x_p = x[np.argmax(np.array(list(map(F, x))))]
             x = np.array([rotate_point(x[i], x_p, S, R, dim, r, theta) for i in range(len(x))])
     return cluster, x
     
-def cluster_f(F, domain, y, cluster, y_id):
+def cluster_f(F, domain, y, cluster, y_id, *f_args):
     idx = np.argmin(np.array([np.linalg.norm(y-center) for center in cluster["center"]])) #find closest cluster idx
     x_c = cluster["center"][idx] #the closest cluster center to y
     x_t = 0.5*(x_c+y)
-    if (F(x_t) < F(y)) and (F(x_t) < F(x_c)):
+    F_ = lambda x_: F(x_,*f_args)
+    if (F_(x_t) < F_(y)) and (F_(x_t) < F_(x_c)):
         cluster["center"].append(y)
         cluster["id"].append(y_id)
         cluster["radius"].append(np.linalg.norm(y-x_t))
-    elif (F(x_t) > F(y)) and (F(x_t) > F(x_c)):
+    elif (F_(x_t) > F_(y)) and (F_(x_t) > F_(x_c)):
         cluster["center"].append(y)
         cluster["id"].append(y_id)
         cluster["radius"].append(np.linalg.norm(y-x_t))
-        cluster_f(F, domain, x_t, cluster, -1)
-    elif F(y) > F(x_c):
+        cluster_f(F, domain, x_t, cluster, -1, *f_args)
+    elif F_(y) > F_(x_c):
         cluster["radius"][idx] = np.linalg.norm(y-x_t)
     return cluster
     
