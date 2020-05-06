@@ -7,13 +7,19 @@ Created on Wed Apr 29 13:54:02 2020
 import numpy as np
 import time
 import sobol_seq
+from differential_evolution import diff_evol as DE, diff_evol_max as DE_max
 
-
-def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
+def cluster_DE(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
     '''
-    combination of clustering and spiral optimization
+    modified clustering method, replaced spiral with differential evolution on intensification phase
+    DE_settings:
+        'mut': mutation prob
+        'crossp': crossover prob
+        'popsize': population size 
+        'maxiter': maximum iteration
     '''
-    cluster, x = clustering(F, domain, spiral_settings, m_cluster, gamma, epsilon, delta, k_cluster)
+    cluster, x = clustering(F, domain, spiral_settings,*f_args, 
+                            m_cluster=m_cluster, gamma=gamma, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
     print(cluster)
     dim = len(domain)
     num_cluster = len(cluster["center"])
@@ -24,9 +30,8 @@ def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=
         print("cluster no. ",i)
         for j in range(dim):
             new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
-        x_star, f_star = spiral_dynamics_optimization(F, spiral_settings["S"], spiral_settings["R"], spiral_settings["m"], 
-                                     spiral_settings["theta"], spiral_settings["r"], 
-                                     spiral_settings["kmax"], new_domains[i], log=False)
+        x_star, f_star = DE_max(F, new_domains[i], *f_args, mut=DE_settings['mut'], crossp=DE_settings['crossp'], 
+                            popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'])
         if (1.0-f_star) < epsilon: #roots selection by threshold
             accepted_roots.append(x_star)
             accepted_fs.append(f_star)
@@ -41,38 +46,85 @@ def cluster_spiral(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=
         geq_truth = True
         for j in range(length):
             if i!=j:    
-#                if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) > delta:
-#                    truth = 
-#                    print(i,j, np.linalg.norm(accepted_roots[i]-accepted_roots[j]), delta)
-#                    new_accepted_root_idxes.append(i)
-#                    new_accepted_root_idxes.append(j)
                 if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) <= delta:
                     geq_truth = False
-#                    if accepted_fs[i]>=accepted_fs[j]:
-#                        new_accepted_root_idxes.append(i)
-#                    elif accepted_fs[i]<accepted_fs[j]:
-#                        new_accepted_root_idxes.append(j)
         if geq_truth:
             geq_delta_idxes.append(i)
         else:
             leq_delta_idxes.append(i)
             
-    geq_delta_idxes = np.array(geq_delta_idxes)
-    leq_delta_idxes = np.array(leq_delta_idxes)
     new_accepted_roots = []
     if len(leq_delta_idxes)>0:
+        leq_delta_idxes = np.array(leq_delta_idxes)
         max_root = accepted_roots[np.argmax(accepted_fs[leq_delta_idxes])]  #get the roots with highest F from less than delta idxes
         new_accepted_roots.append(max_root)
-    new_accepted_roots.extend(accepted_roots[geq_delta_idxes]) #get the greater than delta x-idxes
+    if len(geq_delta_idxes)>0:
+        geq_delta_idxes = np.array(geq_delta_idxes)
+        new_accepted_roots.extend(accepted_roots[geq_delta_idxes]) #get the greater than delta x-idxes
     new_accepted_roots = np.array(new_accepted_roots)
     
-#    print(new_domains, "\n")
+    print(geq_delta_idxes, leq_delta_idxes)
+    print(new_accepted_roots, len(new_accepted_roots))
+    
+    return new_accepted_roots        
+        
+
+def cluster_spiral(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
+    '''
+    combination of clustering and spiral optimization
+    '''
+    cluster, x = clustering(F, domain, spiral_settings,*f_args, 
+                            m_cluster=m_cluster, gamma=gamma, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
+    print(cluster)
+    dim = len(domain)
+    num_cluster = len(cluster["center"])
+    new_domains = np.zeros((num_cluster, dim, 2))
+    accepted_roots = []
+    accepted_fs=[]
+    for i in range(num_cluster): #do spiral for each clusters
+        print("cluster no. ",i)
+        for j in range(dim):
+            new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
+        x_star, f_star = spiral_dynamics_optimization(F, spiral_settings["S"], spiral_settings["R"], spiral_settings["m"], 
+                                     spiral_settings["theta"], spiral_settings["r"], 
+                                     spiral_settings["kmax"], new_domains[i], *f_args, log=False)
+        if (1.0-f_star) < epsilon: #roots selection by threshold
+            accepted_roots.append(x_star)
+            accepted_fs.append(f_star)
+    #selection by proximity:
+    accepted_roots = np.array(accepted_roots)
+    print(accepted_roots, len(accepted_roots))
+    accepted_fs = np.array(accepted_fs)
+    length = accepted_roots.shape[0]
+    geq_delta_idxes = []
+    leq_delta_idxes = []
+    for i in range(length):
+        geq_truth = True
+        for j in range(length):
+            if i!=j:    
+                if np.linalg.norm(accepted_roots[i]-accepted_roots[j]) <= delta:
+                    geq_truth = False
+        if geq_truth:
+            geq_delta_idxes.append(i)
+        else:
+            leq_delta_idxes.append(i)
+            
+    new_accepted_roots = []
+    if len(leq_delta_idxes)>0:
+        leq_delta_idxes = np.array(leq_delta_idxes)
+        max_root = accepted_roots[np.argmax(accepted_fs[leq_delta_idxes])]  #get the roots with highest F from less than delta idxes
+        new_accepted_roots.append(max_root)
+    if len(geq_delta_idxes)>0:
+        geq_delta_idxes = np.array(geq_delta_idxes)
+        new_accepted_roots.extend(accepted_roots[geq_delta_idxes]) #get the greater than delta x-idxes
+    new_accepted_roots = np.array(new_accepted_roots)
+    
     print(geq_delta_idxes, leq_delta_idxes)
     print(new_accepted_roots, len(new_accepted_roots))
     
     return new_accepted_roots
     
-def clustering(F, domain, spiral_settings, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
+def clustering(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, epsilon=1e-5, delta=1e-2, k_cluster=10):
     '''
     diversification phase of initial guess points, outputs clusters of domains
     cluster_settings contains:
@@ -169,7 +221,7 @@ def transformation_matrix(mat_R_ij, dim, r, theta):
     return np.matmul(mat_r, mat_Rn)
 
 
-def spiral_dynamics_optimization(F, S, R, m, theta, r, kmax, domain, log=True):
+def spiral_dynamics_optimization(F, S, R, m, theta, r, kmax, domain, *f_args, log=True):
     '''
     Function F optimization using spiral dynamics -> rotating & contracting points
     '''
@@ -192,7 +244,7 @@ def spiral_dynamics_optimization(F, S, R, m, theta, r, kmax, domain, log=True):
     for i in range(x_dim):
         x.T[i] = x.T[i]*(domain[i][1]-domain[i][0])+domain[i][0]
 
-    f = np.array([F(x_) for x_ in x])
+    f = np.array([F(x_, *f_args) for x_ in x])
 
     # search the minimum/maximum (depends on the problem) of f(init_point), in this case, max
     x_star = x[np.argmax(f)]
@@ -200,14 +252,14 @@ def spiral_dynamics_optimization(F, S, R, m, theta, r, kmax, domain, log=True):
     # rotate the points
     for k in range(kmax):
         x = np.array([rotate_point(x[i], x_star, S, R, x_dim, r, theta) for i in range(len(x))])
-        f = np.array([F(x_) for x_ in x])
+        f = np.array([F(x_, *f_args) for x_ in x])
         x_star_next = x[np.argmax(f)]
         if(F(x_star_next) > F(x_star)):
             x_star = np.copy(x_star_next)
         if log:
             print("Iteration\tx_star\tF(x_star)")
-            print(str(k)+" "+str(x_star)+" "+str(F(x_star)))
-    return x_star, F(x_star)
+            print(str(k)+" "+str(x_star)+" "+str(F(x_star, *f_args)))
+    return x_star, F(x_star, *f_args)
 
 rotate_point = lambda x, x_star, S, R, x_dim, r, theta: np.matmul( S(R, x_dim, r, theta), x ) - np.matmul( ( S(R, x_dim, r, theta) - np.identity(x_dim) ), x_star )
 
@@ -217,7 +269,7 @@ rotate_point = lambda x, x_star, S, R, x_dim, r, theta: np.matmul( S(R, x_dim, r
 
 if __name__=="__main__":
     # seed the random, as usual, to create reproducible result
-#    np.random.seed(13)
+    np.random.seed(13)
 #    domain=np.array([[-4,4], [-4,4]])
 #    f=[lambda x : ( (x[0]**4) - 16*(x[0]**2) + 5*x[0] )/2 + ( x[1]**4 - 16*(x[1]**2) + 5*x[1] )/2]
 #    #transform f(x) into maximization function
@@ -238,12 +290,53 @@ if __name__=="__main__":
 #    print(S)
 #    print(time.time()-start)
 
+#Problem 1
+#    '''with spiral'''
+#    f = [lambda x : np.exp(x[0]-x[1])-np.sin(x[0]+x[1]), lambda x : (x[0]**2) * (x[1]**2) - np.cos(x[0]+x[1])]
+#    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
+#    domain = np.array([[-10,10]]*2)  
+#    start = time.time()
+#    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":250, "theta":45, "kmax":250}
+#    cluster_spiral(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=0.1, delta=1e-1, k_cluster=10)
+#    print(time.time()-start)
+    
+    '''with DE'''
     f = [lambda x : np.exp(x[0]-x[1])-np.sin(x[0]+x[1]), lambda x : (x[0]**2) * (x[1]**2) - np.cos(x[0]+x[1])]
     F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
     domain = np.array([[-10,10]]*2)  
     start = time.time()
     spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":250, "theta":45, "kmax":250}
-#    cluster, x = clustering(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=1e-7, delta=1e-2, k_cluster=10)
-#    print(cluster)
-    cluster_spiral(F, domain, spiral_settings, m_cluster=250, gamma=0.2, epsilon=0.1, delta=1e-1, k_cluster=10)
+    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':20}
+    cluster_DE(F, domain, spiral_settings, DE_settings, m_cluster=250, gamma=0.2, epsilon=0.1, delta=1e-1, k_cluster=10)
     print(time.time()-start)
+    
+    
+#    '''with spiral'''
+#    f = [lambda x : 2*x[0]+x[1]+x[2]+x[3]+x[4]-6,
+#         lambda x : 2*x[1]+x[0]+x[2]+x[3]+x[4]-6,
+#         lambda x : 2*x[2]+x[0]+x[1]+x[3]+x[4]-6,
+#         lambda x : 2*x[3]+x[0]+x[2]+x[1]+x[4]-6,
+#         lambda x : x[0]*x[1]*x[2]*x[3]*x[4] - 1
+#         ]
+#    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
+#    domain = np.array([[-10,10]]*5)  
+#    start = time.time()
+#    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":200, "theta":45, "kmax":250}
+#    cluster_spiral(F, domain, spiral_settings, m_cluster=1000, gamma=0.1, epsilon=0.1, delta=0.1, k_cluster=10)
+#    print(time.time()-start)    
+    
+#    '''with DE'''
+#    f = [lambda x : 2*x[0]+x[1]+x[2]+x[3]+x[4]-6,
+#         lambda x : 2*x[1]+x[0]+x[2]+x[3]+x[4]-6,
+#         lambda x : 2*x[2]+x[0]+x[1]+x[3]+x[4]-6,
+#         lambda x : 2*x[3]+x[0]+x[2]+x[1]+x[4]-6,
+#         lambda x : x[0]*x[1]*x[2]*x[3]*x[4] - 1
+#         ]
+#    F = lambda x : 1/( 1 + sum([abs(f_(x)) for f_ in f]) )
+#    domain = np.array([[-10,10]]*5)  
+#    start = time.time()
+#    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':30}
+#    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":200, "theta":45, "kmax":250}
+#    cluster_DE(F, domain, spiral_settings, DE_settings, m_cluster=300, gamma=0.1, epsilon=0.1, delta=0.1, k_cluster=10)
+#    print(DE_max(F, domain, mut=DE_settings['mut'], crossp=DE_settings['crossp'], popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter']))
+#    print(time.time()-start)    
