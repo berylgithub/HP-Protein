@@ -7,8 +7,12 @@ Created on Mon Apr  6 14:37:33 2020
 import time
 import numpy as np
 
-global return_val
-return_val = []
+#global return_val
+#return_val = []
+
+f_2DHP = [lambda x, *args : func_2D_protein(x, *args)]
+F_2DHP = lambda x, *args : 1/( 1 + sum([abs(f_(x, *args)) for f_ in f_2DHP]) ) #transform into maximization function, for clustering purpose
+
 
 def func_2D_protein(x, *args):
     '''
@@ -69,14 +73,16 @@ def func_2D_protein(x, *args):
         coords = to_2D_cartesian(move_seq)
         if len(np.unique(coords, axis=0)) == len(coords): #another feasibility check by checking duplicate coordinates
             fitness = calculate_fitness_2D_sequence(hp_seq, coords, settings)
+            
+            '''
             #append to return val to save the data to pickle
             length = len(return_val)
-            
             if length > 0:
                 if not np.array_equal(coords, return_val[length-1][0]):
                     return_val.append((coords, fitness))
             else:
                 return_val.append((coords, fitness))
+            '''
     return fitness
 
 
