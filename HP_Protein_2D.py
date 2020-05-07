@@ -11,8 +11,8 @@ import numpy as np
 #return_val = []
 
 f_2DHP = [lambda x, *args : func_2D_protein(x, *args)]
-F_2DHP = lambda x, *args : 1/( 1 + sum([abs(f_(x, *args)) for f_ in f_2DHP]) ) #transform into maximization function, for clustering purpose
-
+#F_2DHP = lambda x, *args : 1/( 1 + sum([abs(f_(x, *args)) for f_ in f_2DHP]) ) #transform into maximization function, for clustering purpose (doesnt work for protein function since the minimum is not 0)
+F_2DHP = lambda x, *args : 1 - (1 / (1 + sum([abs(f_(x, *args)) for f_ in f_2DHP])))
 
 def func_2D_protein(x, *args):
     '''
@@ -49,7 +49,8 @@ def func_2D_protein(x, *args):
     #move_seq = np.array([0,0,1,1,2,2,1,0,0,0,1,1,2,2,1,1,2,1,2,2])
     len_move = move_seq.shape[0]
     feasibility = True    
-    fitness = np.inf
+#    fitness = np.inf #set fitness value as infinite for infeasible conformations (ONLY WORKS FOR MINIMIZATION ALGORITHM due to how the absolute value of objective function is calculated)
+    fitness = 0 #set fitness value as 0 for infeasible conformations
     
     #initial feasibility check, to make the calculation faster
     counter=1
