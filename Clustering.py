@@ -18,7 +18,7 @@ def cluster_DE(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10, g
         'popsize': population size 
         'maxiter': maximum iteration
     '''
-    cluster, x = clustering(F, domain, spiral_settings,*f_args, 
+    cluster = clustering(F, domain, spiral_settings,*f_args, 
                             m_cluster=m_cluster, gamma=gamma, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
     print(cluster)
     dim = len(domain)
@@ -31,7 +31,7 @@ def cluster_DE(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10, g
         for j in range(dim):
             new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
         x_star, f_star = DE_max(F, new_domains[i], *f_args, mut=DE_settings['mut'], crossp=DE_settings['crossp'], 
-                            popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'], sobol=False)
+                            popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'])
         if (1.0-f_star) < epsilon: #roots selection by threshold
             accepted_roots.append(x_star)
             accepted_fs.append(f_star)
@@ -74,7 +74,7 @@ def cluster_spiral(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2,
     combination of clustering and spiral optimization
     '''
 
-    cluster, x = clustering(F, domain, spiral_settings,*f_args, 
+    cluster = clustering(F, domain, spiral_settings,*f_args, 
                             m_cluster=m_cluster, gamma=gamma, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
     print(cluster)
     dim = len(domain)
@@ -162,7 +162,7 @@ def clustering(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, eps
             x_p = x[np.argmax(np.array(list(map(temp_F, x))))]
 #            x_p = x[np.argmax(np.array(list(map(F, x))))]
             x = np.array([rotate_point(x[i], x_p, S, R, dim, r, theta) for i in range(len(x))])
-    return cluster, x
+    return cluster
     
 def cluster_f(F, domain, y, cluster, y_id, *f_args):
     idx = np.argmin(np.array([np.linalg.norm(y-center) for center in cluster["center"]])) #find closest cluster idx
