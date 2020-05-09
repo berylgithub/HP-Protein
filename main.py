@@ -9,7 +9,7 @@ import time
 import numpy as np
 from scipy.optimize import differential_evolution
 from differential_evolution import diff_evol, diff_evol_max
-from Clustering import cluster_DE, mat_R_ij, transformation_matrix
+from Clustering import cluster_DE, cluster_DE_mm, mat_R_ij, transformation_matrix
 import multiprocessing
 import pickle
 
@@ -69,11 +69,14 @@ if __name__ == "__main__":
 #        result = diff_evol(hp2d.func_2D_protein, bounds, hp_seq,settings, popsize=len_hp_seq*25, maxiter=300, sobol=True)
 #        result = diff_evol_max(hp2d.F_2DHP, bounds, hp_seq,settings, popsize=len_hp_seq*25, maxiter=300, sobol=True)
         spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":250, "theta":45, "kmax":250}
-        DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':len_hp_seq*25, 'maxiter':100}
-        cluster_settings = {'m_cluster':250, 'gamma':0.2, 'epsilon':0.6, 'delta':1e-1, 'k_cluster':20}
-        result = cluster_DE(hp2d.F_2DHP, bounds, spiral_settings, DE_settings, hp_seq, settings, 
-                            m_cluster=cluster_settings['m_cluster'], gamma=cluster_settings['gamma'], 
-                            epsilon=cluster_settings['epsilon'], delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
+        DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':len_hp_seq*25, 'maxiter':40}
+        cluster_settings = {'m_cluster':250, 'gamma':0.2, 'epsilon':3, 'delta':0.1, 'k_cluster':20}
+#        result = cluster_DE(hp2d.F_2DHP, bounds, spiral_settings, DE_settings, hp_seq, settings, 
+#                            m_cluster=cluster_settings['m_cluster'], gamma=cluster_settings['gamma'], 
+#                            epsilon=cluster_settings['epsilon'], delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
+        result = cluster_DE_mm(hp2d.G_2DHP, bounds, spiral_settings, DE_settings, hp_seq, settings, 
+                            m_cluster=cluster_settings['m_cluster'], epsilon=cluster_settings['epsilon'], 
+                            delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
         print(result)
         coors = np.array([hp2d.to_2D_cartesian_from_real(res_, settings) for res_ in result])
         Fs = np.array([hp2d.func_2D_protein(res_, hp_seq, settings) for res_ in result])
@@ -82,9 +85,9 @@ if __name__ == "__main__":
         elapsed_time = end-start
         print("elapsed time = ", end-start)
         data = {'hp_seq':hp_seq, 'x': result, 'coor':coors, 'F':Fs, 'time':elapsed_time, 'params':[settings, spiral_settings, DE_settings, cluster_settings]}
-        with open("data/"+files[i]+"_pkl", 'wb') as handle:
+        with open("data/"+files[i]+"_mm_pkl", 'wb') as handle:
             pickle.dump(data, handle)
-        with open("data/"+files[i]+"_pkl", 'rb') as handle:
+        with open("data/"+files[i]+"_mm_pkl", 'rb') as handle:
             b = pickle.load(handle)
         print(b)
 #        ret_val = np.array(hp2d.return_val)
