@@ -12,7 +12,8 @@ import numpy as np
 
 f_2DHP = [lambda x, *args : func_2D_protein(x, *args)]
 #F_2DHP = lambda x, *args : 1/( 1 + sum([abs(f_(x, *args)) for f_ in f_2DHP]) ) #transform into maximization function, for clustering purpose (doesnt work for protein function since the minimum is not 0)
-F_2DHP = lambda x, *args : 1 - (1 / (1 + sum([abs(f_(x, *args)) for f_ in f_2DHP])))
+F_2DHP = lambda x, *args : 1 - (1 / (1 + sum([abs(f_(x, *args)) for f_ in f_2DHP]))) #for root finding algorithm
+G_2DHP = lambda x, *args: -func_2D_protein(x, *args) #for multimodal
 
 def func_2D_protein(x, *args):
     '''

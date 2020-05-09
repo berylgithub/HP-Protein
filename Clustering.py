@@ -40,6 +40,7 @@ def cluster_DE_mm(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10
             new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
         x_star, f_star = DE_max(F, new_domains[i], *f_args, mut=DE_settings['mut'], crossp=DE_settings['crossp'], 
                             popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'])
+        print("F(x-e)=",F(x_star-epsilon, *f_args) ,"F(x+e)=",F(x_star+epsilon, *f_args) ,"F(x)=",f_star)
         if (F(x_star-epsilon, *f_args)<f_star) and (F(x_star+epsilon, *f_args)<f_star): #roots selection by threshold
             accepted_roots.append(x_star)
             accepted_fs.append(f_star)
