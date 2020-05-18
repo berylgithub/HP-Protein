@@ -104,6 +104,8 @@ def diff_evol_max(fobj, bounds, *args, mut=0.8, crossp=0.7, popsize=20, maxiter=
         #cauchy parameters calculation
         if ( np.fabs(f_prev_best-fitness[best_idx])<cauchy_F_tol ) and ( np.linalg.norm(best-x_prev_best)<cauchy_x_tol ):
             counter+=1
+        else:
+            counter=0
             
     if return_all:
         return x_arrays, fitness_arrays, nfev #return the domain vectors, fitness vectors, and total of function evaluation
