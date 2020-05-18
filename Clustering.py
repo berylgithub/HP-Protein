@@ -459,13 +459,44 @@ if __name__=="__main__":
 #    print(time.time()-start)    
     
     '''multimodal optimization, only possible with clustering'''
-    domain = np.array([[-4,4]]*2)
-    F = lambda x : ( (x[0]**4) - 16*(x[0]**2) + 5*x[0] )/2.0 + ( (x[1]**4) - 16*(x[1]**2) + 5*x[1] )/2.0
+    import pickle
+    
+    #second minima
+#    domain = np.array([[-4,4]]*2)
+#    F = lambda x : ( (x[0]**4) - 16*(x[0]**2) + 5*x[0] )/2.0 + ( (x[1]**4) - 16*(x[1]**2) + 5*x[1] )/2.0
+#    G = lambda x : -F(x)
+#    start = time.time()
+#    cluster_settings = {'m_cluster':300, 'epsilon':0.2, 'delta':0.15, 'k_cluster':10}
+#    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":300, "theta":45, "kmax":200}
+#    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':200}
+#    results = cluster_DE_mm(G, domain, spiral_settings, DE_settings, 
+#                            m_cluster=cluster_settings['m_cluster'], epsilon=cluster_settings['epsilon'],
+#                            delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
+#    Fs = list(map(F, results))
+#    elapsed_time = time.time() - start
+#    data = {'x': results, 'F':Fs, 'time':elapsed_time, 'params':[spiral_settings, DE_settings, cluster_settings]}
+#    with open("data/benchmarks/bench_mm_secondminima_min_pkl", 'wb') as handle:
+#        pickle.dump(data, handle)
+#    with open("data/benchmarks/bench_mm_secondminima_min_pkl", 'rb') as handle:
+#        b = pickle.load(handle)
+#    print(b)
+    
+    #rastrigin 3d
+    domain = np.array([[-1,1]]*3)
+    F = lambda x: np.sum([x_**2 - 10*np.cos(2*np.pi*x_) + 10 for x_ in x])
     G = lambda x : -F(x)
     start = time.time()
+    cluster_settings = {'m_cluster':600, 'epsilon':0.2, 'delta':0.15, 'k_cluster':20}
     spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":300, "theta":45, "kmax":200}
-    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':50}
-    results = cluster_DE_mm(G, domain, spiral_settings, DE_settings, m_cluster=300, epsilon=0.1, delta=0.15, k_cluster=10)
-    print(list(map(F, results)))
-    print(time.time()-start)
-    
+    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':200}
+    results = cluster_DE_mm(G, domain, spiral_settings, DE_settings, 
+                            m_cluster=cluster_settings['m_cluster'], epsilon=cluster_settings['epsilon'],
+                            delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
+    Fs = list(map(F, results))
+    elapsed_time = time.time() - start
+    data = {'x': results, 'F':Fs, 'time':elapsed_time, 'params':[spiral_settings, DE_settings, cluster_settings]}
+    with open("data/benchmarks/bench_mm_rastrigin3d_min_pkl", 'wb') as handle:
+        pickle.dump(data, handle)
+    with open("data/benchmarks/bench_mm_rastrigin3d_min_pkl", 'rb') as handle:
+        b = pickle.load(handle)
+    print(b)

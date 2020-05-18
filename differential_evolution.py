@@ -54,7 +54,7 @@ def diff_evol(fobj, bounds, *args, mut=0.8, crossp=0.7, popsize=20, maxiter=10, 
     else:
         return best, fitness[best_idx]
 
-def diff_evol_max(fobj, bounds, *args, mut=0.8, crossp=0.7, popsize=20, maxiter=10, sobol=True, return_all=False):
+def diff_evol_max(fobj, bounds, *args, mut=0.8, crossp=0.7, popsize=20, maxiter=10, sobol=True, return_all=False, cauchy_F_tol=1e-7, cauchy_x_tol=1e-7, cauchy_max_counter=50):
     '''
     DE for maximization purpose
     '''
@@ -73,7 +73,13 @@ def diff_evol_max(fobj, bounds, *args, mut=0.8, crossp=0.7, popsize=20, maxiter=
     nfev = popsize #increment by the number of population
     best_idx = np.argmax(fitness)
     best = pop_denorm[best_idx]
+    counter = 0 #cauchy's parameter
     for i in range(maxiter):
+        #cauchy early stopping check
+        if counter>cauchy_max_counter:
+            break
+        x_prev_best = best #cauchy's parameter
+        f_prev_best = fitness[best_idx] #cauchy's parameter
         for j in range(popsize):
             idxs = [idx for idx in range(popsize) if idx != j]
             a, b, c = pop[np.random.choice(idxs, 3, replace = False)]
@@ -95,6 +101,10 @@ def diff_evol_max(fobj, bounds, *args, mut=0.8, crossp=0.7, popsize=20, maxiter=
         x_arrays[i] = best #set current iter best vector
         fitness_arrays[i] = fitness[best_idx] #set current best fitness
         print("iter=",i,", best fit=",fitness[best_idx])
+        #cauchy parameters calculation
+        if ( np.fabs(f_prev_best-fitness[best_idx])<cauchy_F_tol ) and ( np.linalg.norm(best-x_prev_best)<cauchy_x_tol ):
+            counter+=1
+            
     if return_all:
         return x_arrays, fitness_arrays, nfev #return the domain vectors, fitness vectors, and total of function evaluation
     else:
