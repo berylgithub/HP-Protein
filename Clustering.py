@@ -5,10 +5,11 @@ Created on Wed Apr 29 13:54:02 2020
 @author: Saint8312
 """
 import numpy as np
+import pickle
 import time
 import sobol_seq
 from differential_evolution import diff_evol as DE, diff_evol_max as DE_max
-
+import itertools
 
 '''
 ===============================
@@ -29,6 +30,7 @@ def cluster_DE_mm(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10
     cluster = clustering_mm(F, domain, spiral_settings,*f_args, 
                             m_cluster=m_cluster, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
     print(cluster)
+    print(len(cluster["center"]))
     dim = len(domain)
     num_cluster = len(cluster["center"])
     new_domains = np.zeros((num_cluster, dim, 2))
@@ -40,8 +42,10 @@ def cluster_DE_mm(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10
             new_domains[i][j] = np.array([cluster["center"][i][j]-cluster["radius"][i], cluster["center"][i][j]+cluster["radius"][i]])
         x_star, f_star = DE_max(F, new_domains[i], *f_args, mut=DE_settings['mut'], crossp=DE_settings['crossp'], 
                             popsize=DE_settings['popsize'], maxiter=DE_settings['maxiter'])
-        print("F(x-e)=",F(x_star-epsilon, *f_args) ,"F(x+e)=",F(x_star+epsilon, *f_args) ,"F(x)=",f_star)
-        if (F(x_star-epsilon, *f_args)<f_star) and (F(x_star+epsilon, *f_args)<f_star): #roots selection by threshold
+        low_crit = F(x_star-epsilon, *f_args)
+        high_crit = F(x_star+epsilon, *f_args)
+        print("F(x-e)=", low_crit,"F(x+e)=",high_crit ,"F(x)=",f_star, x_star, (low_crit<f_star) and (high_crit<f_star))
+        if (low_crit<f_star) and (high_crit<f_star): #roots selection by threshold
             accepted_roots.append(x_star)
             accepted_fs.append(f_star)
     #selection by proximity:
@@ -104,12 +108,14 @@ def clustering_mm(F, domain, spiral_settings, *f_args, m_cluster=10, epsilon=1e-
 #    center_idx = np.argmax(np.array(list(map(F, x)))) #get the center of cluster index
     x_star = x[center_idx] #center of cluster
     radius = np.min(np.array([np.fabs(dom[1]-dom[0]) for dom in domain]))/2.0 #get the radius of cluster
-    cluster = {"center": [x_star], "id":[center_idx], "radius":[radius]} #cluster data structure
+    cluster = {"center": [x_star], "radius":[radius]} #cluster data structure
     #should be another loop here
     for k in range(k_cluster):
-        print("k-cluster = ", k)
-        for i in range(m_cluster):
-            if (i not in cluster["id"]):
+        print("=== k-cluster-",k)
+        print(cluster)
+        for i in range(m_cluster): 
+            if not np.any(np.all(np.isin(cluster["center"],x[i],True),axis=1)): #compare x_i to center of cluster
+#            if (i not in cluster["id"]):
                 cluster = cluster_f(F, domain, x[i], cluster, i, *f_args)
             x_p = x[np.argmax(np.array(list(map(temp_F, x))))]
 #            x_p = x[np.argmax(np.array(list(map(F, x))))]
@@ -276,21 +282,23 @@ def clustering(F, domain, spiral_settings, *f_args, m_cluster=10, gamma=0.2, eps
     return cluster
     
 def cluster_f(F, domain, y, cluster, y_id, *f_args):
-    idx = np.argmin(np.array([np.linalg.norm(y-center) for center in cluster["center"]])) #find closest cluster idx
+    idx = np.argmin(np.array([np.linalg.norm(y-center) for center in cluster["center"]])) #find closest cluster idx (index of cluster C)
     x_c = cluster["center"][idx] #the closest cluster center to y
     x_t = 0.5*(x_c+y)
     F_ = lambda x_: F(x_,*f_args)
     if (F_(x_t) < F_(y)) and (F_(x_t) < F_(x_c)):
         cluster["center"].append(y)
-        cluster["id"].append(y_id)
+#        cluster["id"].append(y_id)
         cluster["radius"].append(np.linalg.norm(y-x_t))
     elif (F_(x_t) > F_(y)) and (F_(x_t) > F_(x_c)):
         cluster["center"].append(y)
-        cluster["id"].append(y_id)
+#        cluster["id"].append(y_id)
         cluster["radius"].append(np.linalg.norm(y-x_t))
         cluster_f(F, domain, x_t, cluster, -1, *f_args)
-    elif F_(y) > F_(x_c):
-        cluster["radius"][idx] = np.linalg.norm(y-x_t)
+    elif F_(y) > F_(x_c): ##### something's amiss
+        cluster["center"][idx] = y
+#        cluster["id"][idx] = y_id
+    cluster["radius"][idx] = np.linalg.norm(y-x_t) ##############
     return cluster
     
 def mat_R_ij(dim, i, j, theta):
@@ -459,7 +467,6 @@ if __name__=="__main__":
 #    print(time.time()-start)    
     
     '''multimodal optimization, only possible with clustering'''
-    import pickle
     
     #second minima
 #    domain = np.array([[-4,4]]*2)
@@ -468,35 +475,43 @@ if __name__=="__main__":
 #    start = time.time()
 #    cluster_settings = {'m_cluster':300, 'epsilon':0.2, 'delta':0.15, 'k_cluster':10}
 #    spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":300, "theta":45, "kmax":200}
-#    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':200}
-#    results = cluster_DE_mm(G, domain, spiral_settings, DE_settings, 
+#    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':500}
+#    results = cluster_DE_mm(F, domain, spiral_settings, DE_settings, 
 #                            m_cluster=cluster_settings['m_cluster'], epsilon=cluster_settings['epsilon'],
 #                            delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
 #    Fs = list(map(F, results))
 #    elapsed_time = time.time() - start
 #    data = {'x': results, 'F':Fs, 'time':elapsed_time, 'params':[spiral_settings, DE_settings, cluster_settings]}
-#    with open("data/benchmarks/bench_mm_secondminima_min_pkl", 'wb') as handle:
+#    with open("data/benchmarks/bench_mm_secondminima_max_pkl", 'wb') as handle:
 #        pickle.dump(data, handle)
-#    with open("data/benchmarks/bench_mm_secondminima_min_pkl", 'rb') as handle:
+#    with open("data/benchmarks/bench_mm_secondminima_max_pkl", 'rb') as handle:
 #        b = pickle.load(handle)
 #    print(b)
     
-    #rastrigin 3d
-    domain = np.array([[-1,1]]*3)
+    #rastrigin
+    dim = 2
+    domain = np.array([[-5.12,5.12]]*dim)
     F = lambda x: np.sum([x_**2 - 10*np.cos(2*np.pi*x_) + 10 for x_ in x])
-    G = lambda x : -F(x)
+    
+    #second minima
+#    domain = np.array([[-4,4]]*2)
+#    F = lambda x : ( (x[0]**4) - 16*(x[0]**2) + 5*x[0] )/2.0 + ( (x[1]**4) - 16*(x[1]**2) + 5*x[1] )/2.0
+#    G = lambda x : -F(x)
+
+    #
+
     start = time.time()
     cluster_settings = {'m_cluster':600, 'epsilon':0.2, 'delta':0.15, 'k_cluster':20}
     spiral_settings = {"S":transformation_matrix, "R":mat_R_ij, "r":0.95, "m":300, "theta":45, "kmax":200}
-    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':200}
-    results = cluster_DE_mm(G, domain, spiral_settings, DE_settings, 
+    DE_settings = {'mut':0.8, 'crossp':0.7, 'popsize':100, 'maxiter':500}
+    results = cluster_DE_mm(F, domain, spiral_settings, DE_settings, 
                             m_cluster=cluster_settings['m_cluster'], epsilon=cluster_settings['epsilon'],
                             delta=cluster_settings['delta'], k_cluster=cluster_settings['k_cluster'])
     Fs = list(map(F, results))
     elapsed_time = time.time() - start
-    data = {'x': results, 'F':Fs, 'time':elapsed_time, 'params':[spiral_settings, DE_settings, cluster_settings]}
-    with open("data/benchmarks/bench_mm_rastrigin3d_min_pkl", 'wb') as handle:
+    data = {'x': results, 'F':Fs, 'domain':domain, 'time':elapsed_time, 'params':[spiral_settings, DE_settings, cluster_settings]}
+    with open("data/benchmarks/bench_mm_rastrigin3d_max_pkl", 'wb') as handle:
         pickle.dump(data, handle)
-    with open("data/benchmarks/bench_mm_rastrigin3d_min_pkl", 'rb') as handle:
+    with open("data/benchmarks/bench_mm_rastrigin3d_max_pkl", 'rb') as handle:
         b = pickle.load(handle)
     print(b)
