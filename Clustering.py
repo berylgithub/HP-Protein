@@ -27,12 +27,27 @@ def cluster_DE_mm(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10
         'crossp': crossover prob
         'popsize': population size 
         'maxiter': maximum iteration
-    '''
+    '''    
+    dim = len(domain)
     cluster = clustering_mm(F, domain, spiral_settings,*f_args, 
                             m_cluster=m_cluster, epsilon=epsilon, delta=delta, k_cluster=k_cluster)
-    print(cluster)
-    print(len(cluster["center"]))
-    dim = len(domain)
+#    print(cluster)
+    print("before culling = ", len(cluster["center"]))
+    #IF clusters are outside of domain appear, delete em:
+    cluster["center"] = np.array(cluster["center"])
+    cluster["radius"] = np.array(cluster["radius"])
+    truth_arrays = []
+    for i in range(dim):
+        truth_array = (domain[i][0]<cluster["center"].T[i])*(cluster["center"].T[i]<domain[i][1])
+        truth_arrays.append(truth_array)
+    truth_arrays = np.array(truth_arrays).T
+    truth_vectors = np.all(truth_arrays, axis=1)
+    truth_idxes = np.where(truth_vectors==True)[0]
+    print(truth_idxes, len(truth_idxes))
+    cluster["center"] = cluster["center"][truth_idxes]
+    cluster["radius"] = cluster["radius"][truth_idxes]
+    print("after culling =",len(cluster["center"]))
+    #####################
     num_cluster = len(cluster["center"])
     new_domains = np.zeros((num_cluster, dim, 2))
     accepted_roots = []
@@ -85,7 +100,6 @@ def cluster_DE_mm(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10
         for j in range(length):
             if i!=j:    
                 distance = np.linalg.norm(accepted_roots[i]-accepted_roots[j])
-                print(i, j, distance, distance <= delta)
                 if distance <= delta:
                     temp_leq_idxes.extend([i, j])
                     geq_truth = False
@@ -93,7 +107,6 @@ def cluster_DE_mm(F, domain, spiral_settings, DE_settings, *f_args, m_cluster=10
             geq_delta_idxes.append(i)
         else:
             temp_leq_idxes = np.array(list(set(temp_leq_idxes)))
-            print(temp_leq_idxes)
             max_root_idx = temp_leq_idxes[np.argmax(accepted_fs[temp_leq_idxes])]
             leq_delta_idxes.append(max_root_idx)
     if len(leq_delta_idxes)>0:
